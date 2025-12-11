@@ -890,7 +890,7 @@
 
     function initializeDefaultData() {
       // Create default account
-      accounts = [{ id: Date.now().toString(), name: 'Conta Principal', type: 'corrente', balance: 0, color: '#FFD700' }];
+      accounts = [{ id: crypto.randomUUID(), name: 'Conta Principal', type: 'corrente', balance: 0, color: '#FFD700' }];
       saveToStorage('accounts', accounts);
       goals = [];
       saveToStorage('goals', goals);
@@ -1021,7 +1021,7 @@
     function saveAccount(e, editId) {
       e.preventDefault();
       const accountData = {
-        id: editId || Date.now().toString(),
+        id: editId || crypto.randomUUID(),
         name: document.getElementById('accountName').value.trim(),
         type: document.getElementById('accountType').value,
         balance: parseFloat(document.getElementById('accountBalance').value) || 0,
