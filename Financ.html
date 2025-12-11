@@ -1,0 +1,2005 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LuxFinanças - Painel Financeiro Pessoal</title>
+  <meta name="description" content="LuxFinanças - Gerencie suas finanças pessoais de forma simples e elegante">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            dark: {
+              bg: '#121212',
+              card: '#1E1E1E',
+              text: '#E0E0E0',
+              muted: '#9CA3AF'
+            },
+            gold: '#FFD700',
+            income: '#22c55e',
+            expense: '#ef4444',
+            warning: '#f59e0b',
+            info: '#3b82f6'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'Segoe UI', system-ui, sans-serif; }
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: #FFD700;
+      box-shadow: 0 0 0 2px rgba(255, 215, 0, 0.2);
+    }
+    .btn-gold {
+      background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+      transition: all 0.3s ease;
+    }
+    .btn-gold:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 20px rgba(255, 215, 0, 0.4);
+    }
+    .btn-outline {
+      border: 1px solid rgba(255, 215, 0, 0.5);
+      color: #FFD700;
+      transition: all 0.3s ease;
+    }
+    .btn-outline:hover {
+      background: rgba(255, 215, 0, 0.1);
+    }
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+      transition: all 0.3s ease;
+    }
+    .btn-danger:hover {
+      background: rgba(239, 68, 68, 0.3);
+    }
+    .btn-info {
+      background: rgba(59, 130, 246, 0.2);
+      color: #3b82f6;
+      transition: all 0.3s ease;
+    }
+    .btn-info:hover {
+      background: rgba(59, 130, 246, 0.3);
+    }
+    .card {
+      background: #1E1E1E;
+      border: 1px solid rgba(255, 215, 0, 0.1);
+      transition: all 0.3s ease;
+    }
+    .card:hover { border-color: rgba(255, 215, 0, 0.3); }
+    .fade-in {
+      animation: fadeIn 0.5s ease-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    select option { background: #1E1E1E; color: #E0E0E0; }
+    .chart-container { position: relative; height: 250px; }
+    .chart-container-lg { position: relative; height: 350px; }
+    .nav-item {
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+    .nav-item:hover { background: rgba(255, 215, 0, 0.1); }
+    .nav-item.active { background: rgba(255, 215, 0, 0.2); color: #FFD700; }
+    .calendar-day {
+      aspect-ratio: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border-radius: 0.5rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 0.875rem;
+    }
+    .calendar-day:hover { background: rgba(255, 215, 0, 0.1); }
+    .calendar-day.has-income { background: rgba(34, 197, 94, 0.2); }
+    .calendar-day.has-expense { background: rgba(239, 68, 68, 0.2); }
+    .calendar-day.has-both { background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(239, 68, 68, 0.2)); }
+    .calendar-day.selected { ring: 2px; ring-color: #FFD700; }
+    .heatmap-cell {
+      width: 100%;
+      aspect-ratio: 1;
+      border-radius: 0.25rem;
+      transition: all 0.2s;
+    }
+    .toast {
+      position: fixed;
+      bottom: 1rem;
+      right: 1rem;
+      padding: 1rem 1.5rem;
+      border-radius: 0.5rem;
+      z-index: 100;
+      animation: slideIn 0.3s ease-out;
+    }
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    .progress-bar {
+      height: 8px;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.1);
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.5s ease;
+    }
+    .alert-badge {
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    .modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+    }
+    .modal-content {
+      background: #1E1E1E;
+      border: 1px solid rgba(255, 215, 0, 0.2);
+      border-radius: 1rem;
+      padding: 2rem;
+      max-width: 500px;
+      width: 90%;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body class="bg-dark-bg min-h-screen text-dark-text">
+  
+  <!-- Header -->
+  <header class="fixed top-0 left-0 right-0 bg-dark-card/95 backdrop-blur-sm border-b border-gold/20 z-50">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+      <h1 class="text-xl font-bold">
+        <span class="text-gold">Lux</span>Finanças
+      </h1>
+      
+      <!-- Navigation -->
+      <nav id="mainNav" class="hidden md:flex items-center gap-1">
+        <div class="nav-item active" data-page="dashboard">
+          <span class="flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+            Dashboard
+          </span>
+        </div>
+        <div class="nav-item" data-page="accounts">
+          <span class="flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+            Contas
+          </span>
+        </div>
+        <div class="nav-item" data-page="goals">
+          <span class="flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            Metas
+          </span>
+        </div>
+        <div class="nav-item" data-page="recurring">
+          <span class="flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            Recorrentes
+          </span>
+        </div>
+        <div class="nav-item" data-page="monthly">
+          <span class="flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+            Mensal
+          </span>
+        </div>
+        <div class="nav-item" data-page="reports">
+          <span class="flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            Relatórios
+          </span>
+        </div>
+      </nav>
+
+      <div class="flex items-center gap-2">
+        <!-- Alerts Indicator -->
+        <div id="alertsIndicator" class="hidden relative cursor-pointer" onclick="showAlertsModal()">
+          <svg class="w-6 h-6 text-warning alert-badge" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+          <span id="alertsCount" class="absolute -top-1 -right-1 bg-expense text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">0</span>
+        </div>
+        
+        <button id="logoutBtn" class="hidden px-4 py-2 text-sm text-dark-muted hover:text-gold transition-colors">
+          Sair
+        </button>
+      </div>
+    </div>
+    
+    <!-- Mobile Nav -->
+    <div id="mobileNav" class="hidden md:hidden border-t border-gold/10 px-2 py-2 overflow-x-auto">
+      <div class="flex gap-1 min-w-max">
+        <div class="nav-item active text-xs" data-page="dashboard">Dashboard</div>
+        <div class="nav-item text-xs" data-page="accounts">Contas</div>
+        <div class="nav-item text-xs" data-page="goals">Metas</div>
+        <div class="nav-item text-xs" data-page="recurring">Recorr.</div>
+        <div class="nav-item text-xs" data-page="monthly">Mensal</div>
+        <div class="nav-item text-xs" data-page="reports">Relatórios</div>
+      </div>
+    </div>
+  </header>
+
+  <main class="pt-28 md:pt-20 pb-10 px-4 max-w-7xl mx-auto">
+    
+    <!-- Auth Section -->
+    <section id="authSection" class="min-h-[80vh] flex items-center justify-center fade-in">
+      <div class="card rounded-2xl p-8 w-full max-w-md">
+        <div class="text-center mb-8">
+          <div class="w-16 h-16 bg-gold/20 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg class="w-8 h-8 text-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+          </div>
+          <h2 class="text-2xl font-bold mb-2">Bem-vindo ao <span class="text-gold">LuxFinanças</span></h2>
+          <p class="text-dark-muted">Entre com seu email para continuar</p>
+        </div>
+        
+        <form id="authForm" class="space-y-4">
+          <div>
+            <label class="block text-sm text-dark-muted mb-2">Email</label>
+            <input type="email" id="emailInput" required
+              class="w-full px-4 py-3 bg-dark-bg border border-dark-muted/30 rounded-lg text-dark-text placeholder-dark-muted"
+              placeholder="seu@email.com">
+          </div>
+          <div>
+            <label class="block text-sm text-dark-muted mb-2">Senha</label>
+            <input type="password" id="passwordInput" required minlength="6"
+              class="w-full px-4 py-3 bg-dark-bg border border-dark-muted/30 rounded-lg text-dark-text placeholder-dark-muted"
+              placeholder="Mínimo 6 caracteres">
+          </div>
+          <button type="submit" class="btn-gold w-full py-3 rounded-lg text-dark-bg font-semibold">
+            Entrar / Criar conta
+          </button>
+          <p id="authError" class="text-expense text-sm text-center hidden"></p>
+          <p id="authSuccess" class="text-income text-sm text-center hidden"></p>
+        </form>
+      </div>
+    </section>
+
+    <!-- ==================== PAGE 1: DASHBOARD ==================== -->
+    <section id="dashboardSection" class="hidden space-y-6 fade-in">
+      
+      <!-- Alerts Banner -->
+      <div id="alertsBanner" class="hidden card rounded-xl p-4 border-warning/50 bg-warning/10">
+        <div class="flex items-center gap-3">
+          <svg class="w-6 h-6 text-warning flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+          <div id="alertsBannerContent" class="flex-1"></div>
+          <button onclick="document.getElementById('alertsBanner').classList.add('hidden')" class="text-dark-muted hover:text-white">✕</button>
+        </div>
+      </div>
+
+      <!-- Period Filter -->
+      <div class="card rounded-xl p-4">
+        <div class="flex flex-wrap items-center gap-4">
+          <span class="text-dark-muted text-sm">Filtrar por:</span>
+          <select id="filterPeriod" class="px-4 py-2 bg-dark-bg border border-dark-muted/30 rounded-lg text-dark-text text-sm">
+            <option value="month">Este mês</option>
+            <option value="last30">Últimos 30 dias</option>
+            <option value="last90">Últimos 90 dias</option>
+            <option value="year">Este ano</option>
+            <option value="custom">Personalizado</option>
+          </select>
+          <div id="customDateRange" class="hidden flex items-center gap-2">
+            <input type="date" id="filterStartDate" class="px-3 py-2 bg-dark-bg border border-dark-muted/30 rounded-lg text-dark-text text-sm">
+            <span class="text-dark-muted">até</span>
+            <input type="date" id="filterEndDate" class="px-3 py-2 bg-dark-bg border border-dark-muted/30 rounded-lg text-dark-text text-sm">
+            <button id="applyCustomFilter" class="btn-outline px-4 py-2 rounded-lg text-sm">Aplicar</button>
+          </div>
+          <select id="filterAccount" class="px-4 py-2 bg-dark-bg border border-dark-muted/30 rounded-lg text-dark-text text-sm">
+            <option value="">Todas as contas</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Summary Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="card rounded-xl p-6">
+          <div class="flex items-center gap-3 mb-2">
+            <div class="w-10 h-10 bg-info/20 rounded-lg flex items-center justify-center">
+              <svg class="w-5 h-5 text-info" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
+              </svg>
+            </div>
+            <span class="text-dark-muted text-sm">Saldo Total</span>
+          </div>
+          <p id="totalAccountBalance" class="text-2xl font-bold text-info">R$ 0,00</p>
+        </div>
+        
+        <div class="card rounded-xl p-6">
+          <div class="flex items-center gap-3 mb-2">
+            <div class="w-10 h-10 bg-income/20 rounded-lg flex items-center justify-center">
+              <svg class="w-5 h-5 text-income" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11l5-5m0 0l5 5m-5-5v12"/>
+              </svg>
+            </div>
+            <span class="text-dark-muted text-sm">Receitas</span>
+          </div>
+          <p id="totalIncome" class="text-2xl font-bold text-income">R$ 0,00</p>
+        </div>
+        
+        <div class="card rounded-xl p-6">
+          <div class="flex items-center gap-3 mb-2">
+            <div class="w-10 h-10 bg-expense/20 rounded-lg flex items-center justify-center">
+              <svg class="w-5 h-5 text-expense" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 13l-5 5m0 0l-5-5m5 5V6"/>
+              </svg>
+            </div>
+            <span class="text-dark-muted text-sm">Despesas</span>
+          </div>
+          <p id="totalExpense" class="text-2xl font-bold text-expense">R$ 0,00</p>
+        </div>
+        
+        <div class="card rounded-xl p-6">
+          <div class="flex items-center gap-3 mb-2">
+            <div class="w-10 h-10 bg-gold/20 rounded-lg flex items-center justify-center">
+              <svg class="w-5 h-5 text-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"/>
+              </svg>
+            </div>
+            <span class="text-dark-muted text-sm">Saldo Período</span>
+          </div>
+          <p id="totalBalance" class="text-2xl font-bold text-gold">R$ 0,00</p>
+        </div>
+      </div>
+
+      <!-- Goals Progress (mini) -->
+      <div id="goalsProgressMini" class="hidden card rounded-xl p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-semibold flex items-center gap-2">
+            <svg class="w-5 h-5 text-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            Metas do Mês
+          </h3>
+          <button onclick="navigateTo('goals')" class="text-gold text-sm hover:underline">Ver todas →</button>
+        </div>
+        <div id="goalsProgressMiniList" class="space-y-3"></div>
+      </div>
+
+      <!-- Charts Section -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="card rounded-xl p-6">
+          <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+            <svg class="w-5 h-5 text-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"/>
+            </svg>
+            Despesas por Categoria
+          </h3>
+          <div class="chart-container">
+            <canvas id="categoryChart"></canvas>
+          </div>
+        </div>
+        
+        <div class="card rounded-xl p-6">
+          <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+            <svg class="w-5 h-5 text-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+            </svg>
+            Receitas vs Despesas
+          </h3>
+          <div class="chart-container">
+            <canvas id="monthlyChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Add Transaction Form -->
+      <div class="card rounded-xl p-6">
+        <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+          <svg class="w-5 h-5 text-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+          </svg>
+          Nova Transação
+        </h3>
+        
+        <form id="transactionForm" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-4">
+          <div>
+            <label class="block text-sm text-dark-muted mb-2">Conta</label>
+            <select id="txAccount" required class="w-full px-4 py-3 bg-dark-bg border border-dark-muted/30 rounded-lg text-dark-text">
+              <option value="">Selecione...</option>
+            </select>
+          </div>
+          
+          <div>
+            <label class="block text-sm text-dark-muted mb-2">Tipo</label>
+            <select id="txType" required class="w-full px-4 py-3 bg-dark-bg border border-dark-muted/30 rounded-lg text-dark-text">
+              <option value="">Selecione...</option>
+              <option value="receita">Receita</option>
+              <option value="despesa">Despesa</option>
+            </select>
+          </div>
+          
+          <div>
+            <label class="block text-sm text-dark-muted mb-2">Categoria</label>
+            <select id="txCategory" required class="w-full px-4 py-3 bg-dark-bg border border-dark-muted/30 rounded-lg text-dark-text">
+              <option value="">Selecione...</option>
+            </select>
+          </div>
+          
+          <div>
+            <label class="block text-sm text-dark-muted mb-2">Valor (R$)</label>
+            <input type="number" id="txValue" required step="0.01" min="0.01"
+              class="w-full px-4 py-3 bg-dark-bg border border-dark-muted/30 rounded-lg text-dark-text" placeholder="0,00">
+          </div>
+          
+          <div>
+            <label class="block text-sm text-dark-muted mb-2">Data</label>
+            <input type="date" id="txDate" required class="w-full px-4 py-3 bg-dark-bg border border-dark-muted/30 rounded-lg text-dark-text">
+          </div>
+          
+          <div>
+            <label class="block text-sm text-dark-muted mb-2">Descrição</label>
+            <input type="text" id="txDescription" class="w-full px-4 py-3 bg-dark-bg border border-dark-muted/30 rounded-lg text-dark-text" placeholder="Opcional...">
+          </div>
+          
+          <div class="flex items-end">
+            <button type="submit" class="btn-gold w-full py-3 rounded-lg text-dark-bg font-semibold">Adicionar</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Transactions List -->
+      <div class="card rounded-xl p-6">
+        <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+          <svg class="w-5 h-5 text-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+          </svg>
+          Últimas Transações
+        </h3>
+        <div id="transactionsList" class="space-y-3">
+          <p class="text-dark-muted text-center py-8">Carregando...</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== PAGE 2: ACCOUNTS ==================== -->
+    <section id="accountsSection" class="hidden space-y-6 fade-in">
+      <div class="flex items-center justify-between">
+        <h2 class="text-2xl font-bold">Minhas Contas</h2>
+        <button onclick="showAddAccountModal()" class="btn-gold px-4 py-2 rounded-lg text-dark-bg font-semibold flex items-center gap-2">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+          Nova Conta
+        </button>
+      </div>
+
+      <!-- Accounts Summary -->
+      <div class="card rounded-xl p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-dark-muted text-sm">Patrimônio Total</p>
+            <p id="totalPatrimony" class="text-3xl font-bold text-gold">R$ 0,00</p>
+          </div>
+          <button onclick="showTransferModal()" class="btn-outline px-4 py-2 rounded-lg flex items-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+            Transferir
+          </button>
+        </div>
+      </div>
+
+      <!-- Accounts List -->
+      <div id="accountsList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+    </section>
+
+    <!-- ==================== PAGE 3: GOALS ==================== -->
+    <section id="goalsSection" class="hidden space-y-6 fade-in">
+      <div class="flex items-center justify-between">
+        <h2 class="text-2xl font-bold">Metas Financeiras</h2>
+        <button onclick="showAddGoalModal()" class="btn-gold px-4 py-2 rounded-lg text-dark-bg font-semibold flex items-center gap-2">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+          Nova Meta
+        </button>
+      </div>
+
+      <!-- Goals Info -->
+      <div class="card rounded-xl p-4 border-info/30 bg-info/5">
+        <p class="text-sm text-dark-muted">
+          <span class="text-info font-medium">Dica:</span> Defina limites mensais por categoria para controlar seus gastos. Você receberá alertas quando estiver próximo do limite.
+        </p>
+      </div>
+
+      <!-- Goals List -->
+      <div id="goalsList" class="space-y-4"></div>
+    </section>
+
+    <!-- ==================== PAGE 4: RECURRING ==================== -->
+    <section id="recurringSection" class="hidden space-y-6 fade-in">
+      <div class="flex items-center justify-between">
+        <h2 class="text-2xl font-bold">Transações Recorrentes</h2>
+        <button onclick="showAddRecurringModal()" class="btn-gold px-4 py-2 rounded-lg text-dark-bg font-semibold flex items-center gap-2">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+          Nova Recorrente
+        </button>
+      </div>
+
+      <!-- Recurring Info -->
+      <div class="card rounded-xl p-4 border-info/30 bg-info/5">
+        <p class="text-sm text-dark-muted">
+          <span class="text-info font-medium">Info:</span> Transações recorrentes são lançadas automaticamente todo mês na data especificada. Ideal para salário, aluguel, assinaturas, etc.
+        </p>
+      </div>
+
+      <!-- Recurring Summary -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="card rounded-xl p-6">
+          <p class="text-dark-muted text-sm mb-1">Receitas Recorrentes</p>
+          <p id="recurringIncomeTotal" class="text-2xl font-bold text-income">R$ 0,00</p>
+          <p id="recurringIncomeCount" class="text-sm text-dark-muted mt-1">0 transações</p>
+        </div>
+        <div class="card rounded-xl p-6">
+          <p class="text-dark-muted text-sm mb-1">Despesas Recorrentes</p>
+          <p id="recurringExpenseTotal" class="text-2xl font-bold text-expense">R$ 0,00</p>
+          <p id="recurringExpenseCount" class="text-sm text-dark-muted mt-1">0 transações</p>
+        </div>
+      </div>
+
+      <!-- Recurring List -->
+      <div id="recurringList" class="space-y-4"></div>
+    </section>
+
+    <!-- ==================== PAGE 5: MONTHLY VIEW ==================== -->
+    <section id="monthlySection" class="hidden space-y-6 fade-in">
+      
+      <!-- Month Selector -->
+      <div class="card rounded-xl p-4">
+        <div class="flex items-center justify-between">
+          <button id="prevMonth" class="btn-outline px-4 py-2 rounded-lg">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+          </button>
+          <h2 id="currentMonthLabel" class="text-xl font-bold text-gold">Dezembro 2025</h2>
+          <button id="nextMonth" class="btn-outline px-4 py-2 rounded-lg">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Monthly Summary -->
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="card rounded-xl p-4 text-center">
+          <p class="text-dark-muted text-sm mb-1">Receitas</p>
+          <p id="monthlyIncome" class="text-xl font-bold text-income">R$ 0,00</p>
+        </div>
+        <div class="card rounded-xl p-4 text-center">
+          <p class="text-dark-muted text-sm mb-1">Despesas</p>
+          <p id="monthlyExpense" class="text-xl font-bold text-expense">R$ 0,00</p>
+        </div>
+        <div class="card rounded-xl p-4 text-center">
+          <p class="text-dark-muted text-sm mb-1">Saldo</p>
+          <p id="monthlyBalance" class="text-xl font-bold text-gold">R$ 0,00</p>
+        </div>
+        <div class="card rounded-xl p-4 text-center">
+          <p class="text-dark-muted text-sm mb-1">Transações</p>
+          <p id="monthlyCount" class="text-xl font-bold text-dark-text">0</p>
+        </div>
+      </div>
+
+      <!-- Calendar & Daily Chart -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <!-- Calendar -->
+        <div class="card rounded-xl p-6">
+          <h3 class="text-lg font-semibold mb-4">Calendário</h3>
+          <div class="grid grid-cols-7 gap-1 text-center text-sm mb-2">
+            <span class="text-dark-muted">Dom</span>
+            <span class="text-dark-muted">Seg</span>
+            <span class="text-dark-muted">Ter</span>
+            <span class="text-dark-muted">Qua</span>
+            <span class="text-dark-muted">Qui</span>
+            <span class="text-dark-muted">Sex</span>
+            <span class="text-dark-muted">Sáb</span>
+          </div>
+          <div id="calendarGrid" class="grid grid-cols-7 gap-1"></div>
+        </div>
+
+        <!-- Daily Bar Chart -->
+        <div class="card rounded-xl p-6">
+          <h3 class="text-lg font-semibold mb-4">Gastos Diários</h3>
+          <div class="chart-container-lg">
+            <canvas id="dailyChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Heatmap -->
+      <div class="card rounded-xl p-6">
+        <h3 class="text-lg font-semibold mb-4">Mapa de Calor - Despesas</h3>
+        <div class="flex items-center gap-2 mb-4 text-sm text-dark-muted">
+          <span>Menos</span>
+          <div class="flex gap-1">
+            <div class="w-4 h-4 rounded bg-dark-bg border border-dark-muted/20"></div>
+            <div class="w-4 h-4 rounded" style="background: rgba(239, 68, 68, 0.2)"></div>
+            <div class="w-4 h-4 rounded" style="background: rgba(239, 68, 68, 0.4)"></div>
+            <div class="w-4 h-4 rounded" style="background: rgba(239, 68, 68, 0.6)"></div>
+            <div class="w-4 h-4 rounded" style="background: rgba(239, 68, 68, 0.8)"></div>
+          </div>
+          <span>Mais</span>
+        </div>
+        <div id="heatmapGrid" class="grid grid-cols-7 gap-1"></div>
+      </div>
+
+      <!-- Monthly Transactions List -->
+      <div class="card rounded-xl p-6">
+        <h3 class="text-lg font-semibold mb-4">Todas as Transações do Mês</h3>
+        <div id="monthlyTransactionsList" class="space-y-3 max-h-96 overflow-y-auto"></div>
+      </div>
+    </section>
+
+    <!-- ==================== PAGE 6: REPORTS ==================== -->
+    <section id="reportsSection" class="hidden space-y-6 fade-in">
+      
+      <!-- Year Selector -->
+      <div class="card rounded-xl p-4">
+        <div class="flex flex-wrap items-center gap-4">
+          <span class="text-dark-muted">Ano:</span>
+          <select id="reportYear" class="px-4 py-2 bg-dark-bg border border-dark-muted/30 rounded-lg text-dark-text">
+            <option value="2025">2025</option>
+            <option value="2024">2024</option>
+            <option value="2023">2023</option>
+          </select>
+          <button id="exportCSV" class="btn-outline px-4 py-2 rounded-lg flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+            Exportar CSV
+          </button>
+        </div>
+      </div>
+
+      <!-- Annual Comparison -->
+      <div class="card rounded-xl p-6">
+        <h3 class="text-lg font-semibold mb-4">Comparativo Mensal</h3>
+        <div class="chart-container-lg">
+          <canvas id="annualChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Cash Flow -->
+      <div class="card rounded-xl p-6">
+        <h3 class="text-lg font-semibold mb-4">Fluxo de Caixa Acumulado</h3>
+        <div class="chart-container-lg">
+          <canvas id="cashFlowChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Pie Chart with Filters -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="card rounded-xl p-6">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold">Distribuição por Categoria</h3>
+            <select id="pieChartType" class="px-3 py-1 bg-dark-bg border border-dark-muted/30 rounded text-dark-text text-sm">
+              <option value="despesa">Despesas</option>
+              <option value="receita">Receitas</option>
+            </select>
+          </div>
+          <div class="chart-container-lg">
+            <canvas id="reportPieChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Category Breakdown Table -->
+        <div class="card rounded-xl p-6">
+          <h3 class="text-lg font-semibold mb-4">Detalhamento por Categoria</h3>
+          <div id="categoryBreakdown" class="space-y-2 max-h-80 overflow-y-auto"></div>
+        </div>
+      </div>
+
+      <!-- Exportable Table -->
+      <div class="card rounded-xl p-6">
+        <h3 class="text-lg font-semibold mb-4">Tabela de Transações</h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="border-b border-dark-muted/20">
+                <th class="text-left py-3 px-2 text-dark-muted">Data</th>
+                <th class="text-left py-3 px-2 text-dark-muted">Tipo</th>
+                <th class="text-left py-3 px-2 text-dark-muted">Categoria</th>
+                <th class="text-left py-3 px-2 text-dark-muted">Conta</th>
+                <th class="text-left py-3 px-2 text-dark-muted">Descrição</th>
+                <th class="text-right py-3 px-2 text-dark-muted">Valor</th>
+              </tr>
+            </thead>
+            <tbody id="reportTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Toast Container -->
+  <div id="toastContainer"></div>
+
+  <!-- Modals Container -->
+  <div id="modalsContainer"></div>
+
+  <script>
+    // ==================== CONFIGURATION ====================
+    const SUPABASE_URL = "https://yqyggnvccelekzeiicvo.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlxeWdnbnZjY2VsZWt6ZWlpY3ZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ4MTQ3MjksImV4cCI6MjA4MDM5MDcyOX0._KobMJqPoKR5BcL2TglEpnHxw2dhpifwbstjwBn-vpo";
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const categoriesReceita = ['Salário', 'Freelance', 'Investimentos', 'Vendas', 'Bonificação', 'Outros'];
+    const categoriesDespesa = ['Alimentação', 'Transporte', 'Moradia', 'Saúde', 'Educação', 'Lazer', 'Compras', 'Contas', 'Assinaturas', 'Outros'];
+    const categoryColors = ['#FFD700', '#22c55e', '#ef4444', '#3b82f6', '#8b5cf6', '#ec4899', '#f97316', '#14b8a6', '#6366f1', '#84cc16'];
+    const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+    const accountTypes = [
+      { value: 'corrente', label: 'Conta Corrente', icon: '🏦' },
+      { value: 'poupanca', label: 'Poupança', icon: '💰' },
+      { value: 'cartao', label: 'Cartão de Crédito', icon: '💳' },
+      { value: 'investimento', label: 'Investimentos', icon: '📈' },
+      { value: 'dinheiro', label: 'Dinheiro', icon: '💵' }
+    ];
+
+    // ==================== STATE ====================
+    let currentUser = null;
+    let currentPage = 'dashboard';
+    let selectedMonth = new Date().getMonth();
+    let selectedYear = new Date().getFullYear();
+    let filterDateRange = { start: null, end: null };
+    let accounts = [];
+    let goals = [];
+    let recurringTransactions = [];
+    let alerts = [];
+
+    // Chart instances
+    let categoryChart = null;
+    let monthlyChart = null;
+    let dailyChart = null;
+    let annualChart = null;
+    let cashFlowChart = null;
+    let reportPieChart = null;
+
+    // ==================== UTILITY FUNCTIONS ====================
+    function formatCurrency(value) {
+      return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+    }
+
+    function formatDate(dateStr) {
+      const date = new Date(dateStr + 'T00:00:00');
+      return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(date);
+    }
+
+    function showToast(message, type = 'success') {
+      const toast = document.createElement('div');
+      toast.className = `toast ${type === 'success' ? 'bg-income text-dark-bg' : type === 'warning' ? 'bg-warning text-dark-bg' : 'bg-expense text-white'}`;
+      toast.textContent = message;
+      document.getElementById('toastContainer').appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+
+    function getDateRange() {
+      if (filterDateRange.start && filterDateRange.end) return filterDateRange;
+      const period = document.getElementById('filterPeriod')?.value || 'month';
+      const now = new Date();
+      let start, end;
+
+      switch (period) {
+        case 'month':
+          start = new Date(now.getFullYear(), now.getMonth(), 1);
+          end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+          break;
+        case 'last30':
+          end = now;
+          start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          break;
+        case 'last90':
+          end = now;
+          start = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+          break;
+        case 'year':
+          start = new Date(now.getFullYear(), 0, 1);
+          end = new Date(now.getFullYear(), 11, 31);
+          break;
+        default:
+          start = new Date(now.getFullYear(), now.getMonth(), 1);
+          end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      }
+      return { start: start.toISOString().split('T')[0], end: end.toISOString().split('T')[0] };
+    }
+
+    function closeModal() {
+      document.getElementById('modalsContainer').innerHTML = '';
+    }
+
+    function getAccountIcon(type) {
+      return accountTypes.find(a => a.value === type)?.icon || '💰';
+    }
+
+    // ==================== LOCAL STORAGE (for accounts, goals, recurring until tables are created) ====================
+    function saveToStorage(key, data) {
+      localStorage.setItem(`luxfinancas_${currentUser.id}_${key}`, JSON.stringify(data));
+    }
+
+    function loadFromStorage(key) {
+      const data = localStorage.getItem(`luxfinancas_${currentUser.id}_${key}`);
+      return data ? JSON.parse(data) : [];
+    }
+
+    // ==================== NAVIGATION ====================
+    function navigateTo(page) {
+      currentPage = page;
+      document.querySelectorAll('.nav-item').forEach(item => {
+        item.classList.toggle('active', item.dataset.page === page);
+      });
+
+      ['dashboard', 'accounts', 'goals', 'recurring', 'monthly', 'reports'].forEach(p => {
+        document.getElementById(p + 'Section').classList.toggle('hidden', p !== page);
+      });
+
+      if (page === 'dashboard') loadDashboardData();
+      else if (page === 'accounts') loadAccountsData();
+      else if (page === 'goals') loadGoalsData();
+      else if (page === 'recurring') loadRecurringData();
+      else if (page === 'monthly') loadMonthlyData();
+      else if (page === 'reports') loadReportsData();
+    }
+
+    // ==================== AUTH ====================
+    async function handleAuth(e) {
+      e.preventDefault();
+      const email = document.getElementById('emailInput').value.trim();
+      const password = document.getElementById('passwordInput').value;
+
+      if (!email || !password || password.length < 6) {
+        document.getElementById('authError').textContent = 'Preencha todos os campos (senha min. 6 caracteres)';
+        document.getElementById('authError').classList.remove('hidden');
+        return;
+      }
+
+      const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({ email, password });
+
+      if (!loginError && loginData.user) {
+        currentUser = loginData.user;
+        showApp();
+        return;
+      }
+
+      if (loginError?.message.includes('Invalid login credentials')) {
+        const { data: signupData, error: signupError } = await supabase.auth.signUp({ email, password });
+        if (signupError) {
+          document.getElementById('authError').textContent = 'Erro: ' + signupError.message;
+          document.getElementById('authError').classList.remove('hidden');
+          return;
+        }
+        if (signupData.user) {
+          currentUser = signupData.user;
+          initializeDefaultData();
+          showToast('Conta criada com sucesso!');
+          showApp();
+        }
+      } else {
+        document.getElementById('authError').textContent = 'Erro: ' + loginError.message;
+        document.getElementById('authError').classList.remove('hidden');
+      }
+    }
+
+    function initializeDefaultData() {
+      // Create default account
+      accounts = [{ id: Date.now().toString(), name: 'Conta Principal', type: 'corrente', balance: 0, color: '#FFD700' }];
+      saveToStorage('accounts', accounts);
+      goals = [];
+      saveToStorage('goals', goals);
+      recurringTransactions = [];
+      saveToStorage('recurring', recurringTransactions);
+    }
+
+    async function handleLogout() {
+      await supabase.auth.signOut();
+      currentUser = null;
+      document.getElementById('authSection').classList.remove('hidden');
+      ['dashboard', 'accounts', 'goals', 'recurring', 'monthly', 'reports'].forEach(p => {
+        document.getElementById(p + 'Section').classList.add('hidden');
+      });
+      document.getElementById('mainNav').classList.add('hidden');
+      document.getElementById('mobileNav').classList.add('hidden');
+      document.getElementById('logoutBtn').classList.add('hidden');
+      document.getElementById('alertsIndicator').classList.add('hidden');
+    }
+
+    function showApp() {
+      document.getElementById('authSection').classList.add('hidden');
+      document.getElementById('mainNav').classList.remove('hidden');
+      document.getElementById('mobileNav').classList.remove('hidden');
+      document.getElementById('logoutBtn').classList.remove('hidden');
+      document.getElementById('txDate').value = new Date().toISOString().split('T')[0];
+      
+      // Load stored data
+      accounts = loadFromStorage('accounts');
+      if (accounts.length === 0) initializeDefaultData();
+      goals = loadFromStorage('goals');
+      recurringTransactions = loadFromStorage('recurring');
+      
+      updateAccountSelects();
+      processRecurringTransactions();
+      navigateTo('dashboard');
+    }
+
+    // ==================== ACCOUNTS ====================
+    function updateAccountSelects() {
+      const selects = ['txAccount', 'filterAccount'];
+      selects.forEach(id => {
+        const select = document.getElementById(id);
+        if (!select) return;
+        const currentValue = select.value;
+        if (id === 'filterAccount') {
+          select.innerHTML = '<option value="">Todas as contas</option>' + accounts.map(a => `<option value="${a.id}">${getAccountIcon(a.type)} ${a.name}</option>`).join('');
+        } else {
+          select.innerHTML = '<option value="">Selecione...</option>' + accounts.map(a => `<option value="${a.id}">${getAccountIcon(a.type)} ${a.name}</option>`).join('');
+        }
+        if (currentValue) select.value = currentValue;
+      });
+    }
+
+    function loadAccountsData() {
+      const total = accounts.reduce((sum, a) => sum + (a.balance || 0), 0);
+      document.getElementById('totalPatrimony').textContent = formatCurrency(total);
+
+      const list = document.getElementById('accountsList');
+      if (accounts.length === 0) {
+        list.innerHTML = '<div class="col-span-full text-center py-8 text-dark-muted">Nenhuma conta cadastrada.</div>';
+        return;
+      }
+
+      list.innerHTML = accounts.map(account => `
+        <div class="card rounded-xl p-6" style="border-color: ${account.color}40">
+          <div class="flex items-start justify-between mb-4">
+            <div class="flex items-center gap-3">
+              <span class="text-3xl">${getAccountIcon(account.type)}</span>
+              <div>
+                <h3 class="font-semibold">${account.name}</h3>
+                <p class="text-sm text-dark-muted">${accountTypes.find(t => t.value === account.type)?.label || account.type}</p>
+              </div>
+            </div>
+            <div class="flex gap-1">
+              <button onclick="editAccount('${account.id}')" class="btn-info p-2 rounded-lg" title="Editar">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+              </button>
+              <button onclick="deleteAccount('${account.id}')" class="btn-danger p-2 rounded-lg" title="Excluir">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+              </button>
+            </div>
+          </div>
+          <p class="text-2xl font-bold" style="color: ${account.balance >= 0 ? '#22c55e' : '#ef4444'}">${formatCurrency(account.balance || 0)}</p>
+        </div>
+      `).join('');
+    }
+
+    function showAddAccountModal(editId = null) {
+      const account = editId ? accounts.find(a => a.id === editId) : null;
+      document.getElementById('modalsContainer').innerHTML = `
+        <div class="modal" onclick="if(event.target===this)closeModal()">
+          <div class="modal-content">
+            <h2 class="text-xl font-bold mb-4">${account ? 'Editar' : 'Nova'} Conta</h2>
+            <form onsubmit="saveAccount(event, '${editId || ''}')" class="space-y-4">
+              <div>
+                <label class="block text-sm text-dark-muted mb-2">Nome da Conta</label>
+                <input type="text" id="accountName" value="${account?.name || ''}" required class="w-full px-4 py-3 bg-dark-bg border border-dark-muted/30 rounded-lg text-dark-text" placeholder="Ex: Nubank, Itaú...">
+              </div>
+              <div>
+                <label class="block text-sm text-dark-muted mb-2">Tipo</label>
+                <select id="accountType" required class="w-full px-4 py-3 bg-dark-bg border border-dark-muted/30 rounded-lg text-dark-text">
+                  ${accountTypes.map(t => `<option value="${t.value}" ${account?.type === t.value ? 'selected' : ''}>${t.icon} ${t.label}</option>`).join('')}
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm text-dark-muted mb-2">Saldo Inicial (R$)</label>
+                <input type="number" id="accountBalance" value="${account?.balance || 0}" step="0.01" class="w-full px-4 py-3 bg-dark-bg border border-dark-muted/30 rounded-lg text-dark-text">
+              </div>
+              <div>
+                <label class="block text-sm text-dark-muted mb-2">Cor</label>
+                <input type="color" id="accountColor" value="${account?.color || '#FFD700'}" class="w-full h-12 rounded-lg cursor-pointer">
+              </div>
+              <div class="flex gap-2">
+                <button type="button" onclick="closeModal()" class="flex-1 btn-outline py-3 rounded-lg">Cancelar</button>
+                <button type="submit" class="flex-1 btn-gold py-3 rounded-lg text-dark-bg font-semibold">Salvar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      `;
+    }
+
+    function editAccount(id) {
+      showAddAccountModal(id);
+    }
+
+    function saveAccount(e, editId) {
+      e.preventDefault();
+      const accountData = {
+        id: editId || Date.now().toString(),
+        name: document.getElementById('accountName').value.trim(),
+        type: document.getElementById('accountType').value,
+        balance: parseFloat(document.getElementById('accountBalance').value) || 0,
+        color: document.getElementById('accountColor').value
+      };
+
+      if (editId) {
+        const idx = accounts.findIndex(a => a.id === editId);
+        if (idx !== -1) accounts[idx] = accountData;
+      } else {
+        accounts.push(accountData);
+      }
+
+      saveToStorage('accounts', accounts);
+      updateAccountSelects();
+      closeModal();
+      showToast(editId ? 'Conta atualizada!' : 'Conta criada!');
+      loadAccountsData();
+    }
+
+    function deleteAccount(id) {
+      if (accounts.length <= 1) return showToast('Você precisa ter pelo menos uma conta!', 'error');
+      if (!confirm('Deseja excluir esta conta?')) return;
+      accounts = accounts.filter(a => a.id !== id);
+      saveToStorage('accounts', accounts);
+      updateAccountSelects();
+      showToast('Conta excluída!');
+      loadAccountsData();
+    }
+
+    function showTransferModal() {
+      if (accounts.length < 2) return showToast('Você precisa de pelo menos 2 contas para transferir.', 'warning');
+      document.getElementById('modalsContainer').innerHTML = `
+        <div class="modal" onclick="if(event.target===this)closeModal()">
+          <div class="modal-content">
+            <h2 class="text-xl font-bold mb-4">Transferência entre Contas</h2>
+            <form onsubmit="executeTransfer(event)" class="space-y-4">
+              <div>
+                <label class="block text-sm text-dark-muted mb-2">De:</label>
+                <select id="transferFrom" required class="w-full px-4 py-3 bg-dark-bg border border-dark-muted/30 rounded-lg text-dark-text">
+                  ${accounts.map(a => `<option value="${a.id}">${getAccountIcon(a.type)} ${a.name} (${formatCurrency(a.balance)})</option>`).join('')}
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm text-dark-muted mb-2">Para:</label>
+                <select id="transferTo" required class="w-full px-4 py-3 bg-dark-bg border border-dark-muted/30 rounded-lg text-dark-text">
+                  ${accounts.map(a => `<option value="${a.id}">${getAccountIcon(a.type)} ${a.name} (${formatCurrency(a.balance)})</option>`).join('')}
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm text-dark-muted mb-2">Valor (R$)</label>
+                <input type="number" id="transferAmount" required step="0.01" min="0.01" class="w-full px-4 py-3 bg-dark-bg border border-dark-muted/30 rounded-lg text-dark-text">
+              </div>
+              <div class="flex gap-2">
+                <button type="button" onclick="closeModal()" class="flex-1 btn-outline py-3 rounded-lg">Cancelar</button>
+                <button type="submit" class="flex-1 btn-gold py-3 rounded-lg text-dark-bg font-semibold">Transferir</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      `;
+    }
+
+    function executeTransfer(e) {
+      e.preventDefault();
+      const fromId = document.getElementById('transferFrom').value;
+      const toId = document.getElementById('transferTo').value;
+      const amount = parseFloat(document.getElementById('transferAmount').value);
+
+      if (fromId === toId) return showToast('Selecione contas diferentes!', 'error');
+
+      const fromAcc = accounts.find(a => a.id === fromId);
+      const toAcc = accounts.find(a => a.id === toId);
+
+      fromAcc.balance -= amount;
+      toAcc.balance += amount;
+
+      saveToStorage('accounts', accounts);
+      closeModal();
+      showToast('Transferência realizada!');
+      loadAccountsData();
+    }
+
+    // ==================== GOALS ====================
+    function loadGoalsData() {
+      const list = document.getElementById('goalsList');
+      if (goals.length === 0) {
+        list.innerHTML = '<div class="card rounded-xl p-8 text-center text-dark-muted">Nenhuma meta cadastrada. Clique em "Nova Meta" para começar.</div>';
+        return;
+      }
+
+      loadGoalsWithProgress(list);
+    }
+
+    async function loadGoalsWithProgress(container) {
+      const now = new Date();
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+      const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+
+      const { data: transactions } = await supabase.from('transactions').select('categoria, valor, tipo')
+        .eq('user_id', currentUser.id).eq('tipo', 'despesa').gte('data', monthStart).lte('data', monthEnd);
+
+      const categoryTotals = {};
+      (transactions || []).forEach(tx => {
+        categoryTotals[tx.categoria] = (categoryTotals[tx.categoria] || 0) + parseFloat(tx.valor);
+      });
+
+      container.innerHTML = goals.map(goal => {
+        const spent = categoryTotals[goal.category] || 0;
+        const percent = Math.min((spent / goal.limit) * 100, 100);
+        const isOver = spent >= goal.limit;
+        const isWarning = percent >= 80 && !isOver;
+
+        return `
+          <div class="card rounded-xl p-6 ${isOver ? 'border-expense/50' : isWarning ? 'border-warning/50' : ''}">
+            <div class="flex items-start justify-between mb-4">
+              <div>
+                <h3 class="font-semibold text-lg">${goal.category}</h3>
+                <p class="text-sm text-dark-muted">Limite mensal: ${formatCurrency(goal.limit)}</p>
+              </div>
+              <div class="flex gap-1">
+                ${isOver ? '<span class="bg-expense/20 text-expense text-xs px-2 py-1 rounded">Estourado!</span>' : isWarning ? '<span class="bg-warning/20 text-warning text-xs px-2 py-1 rounded">Atenção!</span>' : ''}
+                <button onclick="deleteGoal('${goal.id}')" class="btn-danger p-2 rounded-lg" title="Excluir">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                </button>
+              </div>
+            </div>
+            <div class="flex items-center justify-between mb-2">
+              <span class="${isOver ? 'text-expense' : 'text-dark-text'} font-medium">${formatCurrency(spent)}</span>
+              <span class="text-dark-muted text-sm">${percent.toFixed(0)}%</span>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-fill ${isOver ? 'bg-expense' : isWarning ? 'bg-warning' : 'bg-income'}" style="width: ${percent}%"></div>
+            </div>
+            <p class="text-sm text-dark-muted mt-2">Restam ${formatCurrency(Math.max(goal.limit - spent, 0))}</p>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function loadGoalsMiniProgress() {
+      if (goals.length === 0) {
+        document.getElementById('goalsProgressMini').classList.add('hidden');
+        return;
+      }
+
+      const now = new Date();
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+      const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+
+      const { data: transactions } = await supabase.from('transactions').select('categoria, valor')
+        .eq('user_id', currentUser.id).eq('tipo', 'despesa').gte('data', monthStart).lte('data', monthEnd);
+
+      const categoryTotals = {};
+      (transactions || []).forEach(tx => {
+        categoryTotals[tx.categoria] = (categoryTotals[tx.categoria] || 0) + parseFloat(tx.valor);
+      });
+
+      // Check for alerts
+      alerts = [];
+      goals.forEach(goal => {
+        const spent = categoryTotals[goal.category] || 0;
+        const percent = (spent / goal.limit) * 100;
+        if (percent >= 100) alerts.push({ type: 'over', category: goal.category, spent, limit: goal.limit });
+        else if (percent >= 80) alerts.push({ type: 'warning', category: goal.category, spent, limit: goal.limit });
+      });
+
+      updateAlertsIndicator();
+
+      document.getElementById('goalsProgressMini').classList.remove('hidden');
+      document.getElementById('goalsProgressMiniList').innerHTML = goals.slice(0, 3).map(goal => {
+        const spent = categoryTotals[goal.category] || 0;
+        const percent = Math.min((spent / goal.limit) * 100, 100);
+        return `
+          <div class="flex items-center gap-4">
+            <span class="text-sm w-24 truncate">${goal.category}</span>
+            <div class="flex-1 progress-bar">
+              <div class="progress-fill ${percent >= 100 ? 'bg-expense' : percent >= 80 ? 'bg-warning' : 'bg-income'}" style="width: ${percent}%"></div>
+            </div>
+            <span class="text-sm text-dark-muted w-20 text-right">${formatCurrency(spent)}</span>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function updateAlertsIndicator() {
+      const indicator = document.getElementById('alertsIndicator');
+      const count = document.getElementById('alertsCount');
+      const banner = document.getElementById('alertsBanner');
+      const bannerContent = document.getElementById('alertsBannerContent');
+
+      if (alerts.length > 0) {
+        indicator.classList.remove('hidden');
+        count.textContent = alerts.length;
+
+        const overBudget = alerts.filter(a => a.type === 'over');
+        if (overBudget.length > 0) {
+          banner.classList.remove('hidden');
+          bannerContent.innerHTML = `<span class="font-medium text-warning">Atenção!</span> Você estourou o limite em ${overBudget.map(a => a.category).join(', ')}.`;
+        }
+      } else {
+        indicator.classList.add('hidden');
+        banner.classList.add('hidden');
+      }
+    }
+
+    function showAlertsModal() {
+      if (alerts.length === 0) return;
+      document.getElementById('modalsContainer').innerHTML = `
+        <div class="modal" onclick="if(event.target===this)closeModal()">
+          <div class="modal-content">
+            <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+              <svg class="w-6 h-6 text-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+              Alertas de Gastos
+            </h2>
+            <div class="space-y-3">
+              ${alerts.map(a => `
+                <div class="p-4 rounded-lg ${a.type === 'over' ? 'bg-expense/20 border border-expense/30' : 'bg-warning/20 border border-warning/30'}">
+                  <div class="flex items-center justify-between">
+                    <span class="font-medium">${a.category}</span>
+                    <span class="${a.type === 'over' ? 'text-expense' : 'text-warning'}">${a.type === 'over' ? 'Limite estourado!' : 'Próximo do limite'}</span>
+                  </div>
+                  <p class="text-sm text-dark-muted mt-1">Gasto: ${formatCurrency(a.spent)} / Limite: ${formatCurrency(a.limit)}</p>
+                </div>
+              `).join('')}
+            </div>
+            <button onclick="closeModal()" class="w-full btn-outline py-3 rounded-lg mt-4">Fechar</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function showAddGoalModal() {
+      const existingCategories = goals.map(g => g.category);
+      const availableCategories = categoriesDespesa.filter(c => !existingCategories.includes(c));
+
+      if (availableCategories.length === 0) {
+        return showToast('Você já definiu metas para todas as categorias!', 'warning');
+      }
+
+      document.getElementById('modalsContainer').innerHTML = `
+        <div class="modal" onclick="if(event.target===this)closeModal()">
+          <div class="modal-content">
+            <h2 class="text-xl font-bold mb-4">Nova Meta de Gastos</h2>
+            <form onsubmit="saveGoal(event)" class="space-y-4">
+              <div>
+                <label class="block text-sm text-dark-muted mb-2">Categoria</label>
+                <select id="goalCategory" required class="w-full px-4 py-3 bg-dark-bg border border-dark-muted/30 rounded-lg text-dark-text">
+                  <option value="">Selecione...</option>
+                  ${availableCategories.map(c => `<option value="${c}">${c}</option>`).join('')}
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm text-dark-muted mb-2">Limite Mensal (R$)</label>
+                <input type="number" id="goalLimit" required step="0.01" min="1" class="w-full px-4 py-3 bg-dark-bg border border-dark-muted/30 rounded-lg text-dark-text" placeholder="Ex: 500">
+              </div>
+              <div class="flex gap-2">
+                <button type="button" onclick="closeModal()" class="flex-1 btn-outline py-3 rounded-lg">Cancelar</button>
+                <button type="submit" class="flex-1 btn-gold py-3 rounded-lg text-dark-bg font-semibold">Criar Meta</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      `;
+    }
+
+    function saveGoal(e) {
+      e.preventDefault();
+      const goal = {
+        id: Date.now().toString(),
+        category: document.getElementById('goalCategory').value,
+        limit: parseFloat(document.getElementById('goalLimit').value)
+      };
+      goals.push(goal);
+      saveToStorage('goals', goals);
+      closeModal();
+      showToast('Meta criada!');
+      loadGoalsData();
+    }
+
+    function deleteGoal(id) {
+      if (!confirm('Deseja excluir esta meta?')) return;
+      goals = goals.filter(g => g.id !== id);
+      saveToStorage('goals', goals);
+      showToast('Meta excluída!');
+      loadGoalsData();
+    }
+
+    // ==================== RECURRING TRANSACTIONS ====================
+    function loadRecurringData() {
+      let incomeTotal = 0, expenseTotal = 0, incomeCount = 0, expenseCount = 0;
+      recurringTransactions.forEach(r => {
+        if (r.tipo === 'receita') { incomeTotal += r.valor; incomeCount++; }
+        else { expenseTotal += r.valor; expenseCount++; }
+      });
+
+      document.getElementById('recurringIncomeTotal').textContent = formatCurrency(incomeTotal);
+      document.getElementById('recurringExpenseTotal').textContent = formatCurrency(expenseTotal);
+      document.getElementById('recurringIncomeCount').textContent = `${incomeCount} transações`;
+      document.getElementById('recurringExpenseCount').textContent = `${expenseCount} transações`;
+
+      const list = document.getElementById('recurringList');
+      if (recurringTransactions.length === 0) {
+        list.innerHTML = '<div class="card rounded-xl p-8 text-center text-dark-muted">Nenhuma transação recorrente. Adicione salário, aluguel, assinaturas...</div>';
+        return;
+      }
+
+      list.innerHTML = recurringTransactions.map(r => {
+        const account = accounts.find(a => a.id === r.accountId);
+        return `
+          <div class="card rounded-xl p-4 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+              <div class="w-12 h-12 rounded-lg flex items-center justify-center ${r.tipo === 'receita' ? 'bg-income/20 text-income' : 'bg-expense/20 text-expense'}">
+                ${r.tipo === 'receita' ? '↑' : '↓'}
+              </div>
+              <div>
+                <p class="font-medium">${r.descricao || r.categoria}</p>
+                <p class="text-sm text-dark-muted">${r.categoria} • Dia ${r.diaVencimento} • ${account ? account.name : 'Conta não encontrada'}</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-3">
+              <p class="font-semibold ${r.tipo === 'receita' ? 'text-income' : 'text-expense'}">${formatCurrency(r.valor)}</p>
+              <button onclick="deleteRecurring('${r.id}')" class="btn-danger p-2 rounded-lg">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function showAddRecurringModal() {
+      document.getElementById('modalsContainer').innerHTML = `
+        <div class="modal" onclick="if(event.target===this)closeModal()">
+          <div class="modal-content">
+            <h2 class="text-xl font-bold mb-4">Nova Transação Recorrente</h2>
+            <form onsubmit="saveRecurring(event)" class="space-y-4">
+              <div>
+                <label class="block text-sm text-dark-muted mb-2">Conta</label>
+                <select id="recAccount" required class="w-full px-4 py-3 bg-dark-bg border border-dark-muted/30 rounded-lg text-dark-text">
+                  ${accounts.map(a => `<option value="${a.id}">${getAccountIcon(a.type)} ${a.name}</option>`).join('')}
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm text-dark-muted mb-2">Tipo</label>
+                <select id="recType" required onchange="updateRecCategories()" class="w-full px-4 py-3 bg-dark-bg border border-dark-muted/30 rounded-lg text-dark-text">
+                  <option value="receita">Receita</option>
+                  <option value="despesa">Despesa</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm text-dark-muted mb-2">Categoria</label>
+                <select id="recCategory" required class="w-full px-4 py-3 bg-dark-bg border border-dark-muted/30 rounded-lg text-dark-text">
+                  ${categoriesReceita.map(c => `<option value="${c}">${c}</option>`).join('')}
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm text-dark-muted mb-2">Valor (R$)</label>
+                <input type="number" id="recValue" required step="0.01" min="0.01" class="w-full px-4 py-3 bg-dark-bg border border-dark-muted/30 rounded-lg text-dark-text">
+              </div>
+              <div>
+                <label class="block text-sm text-dark-muted mb-2">Dia do Vencimento</label>
+                <input type="number" id="recDay" required min="1" max="28" value="1" class="w-full px-4 py-3 bg-dark-bg border border-dark-muted/30 rounded-lg text-dark-text">
+                <p class="text-xs text-dark-muted mt-1">Máximo dia 28 para evitar problemas com meses curtos</p>
+              </div>
+              <div>
+                <label class="block text-sm text-dark-muted mb-2">Descrição</label>
+                <input type="text" id="recDescription" class="w-full px-4 py-3 bg-dark-bg border border-dark-muted/30 rounded-lg text-dark-text" placeholder="Ex: Salário, Netflix...">
+              </div>
+              <div class="flex gap-2">
+                <button type="button" onclick="closeModal()" class="flex-1 btn-outline py-3 rounded-lg">Cancelar</button>
+                <button type="submit" class="flex-1 btn-gold py-3 rounded-lg text-dark-bg font-semibold">Criar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      `;
+    }
+
+    function updateRecCategories() {
+      const type = document.getElementById('recType').value;
+      const select = document.getElementById('recCategory');
+      select.innerHTML = (type === 'receita' ? categoriesReceita : categoriesDespesa).map(c => `<option value="${c}">${c}</option>`).join('');
+    }
+
+    function saveRecurring(e) {
+      e.preventDefault();
+      const recurring = {
+        id: Date.now().toString(),
+        accountId: document.getElementById('recAccount').value,
+        tipo: document.getElementById('recType').value,
+        categoria: document.getElementById('recCategory').value,
+        valor: parseFloat(document.getElementById('recValue').value),
+        diaVencimento: parseInt(document.getElementById('recDay').value),
+        descricao: document.getElementById('recDescription').value.trim(),
+        lastProcessed: null
+      };
+      recurringTransactions.push(recurring);
+      saveToStorage('recurring', recurringTransactions);
+      closeModal();
+      showToast('Transação recorrente criada!');
+      loadRecurringData();
+    }
+
+    function deleteRecurring(id) {
+      if (!confirm('Deseja excluir esta transação recorrente?')) return;
+      recurringTransactions = recurringTransactions.filter(r => r.id !== id);
+      saveToStorage('recurring', recurringTransactions);
+      showToast('Transação recorrente excluída!');
+      loadRecurringData();
+    }
+
+    async function processRecurringTransactions() {
+      const now = new Date();
+      const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+      for (const rec of recurringTransactions) {
+        if (rec.lastProcessed === currentMonth) continue;
+        if (now.getDate() < rec.diaVencimento) continue;
+
+        const transactionDate = new Date(now.getFullYear(), now.getMonth(), rec.diaVencimento);
+        if (transactionDate > now) continue;
+
+        const { error } = await supabase.from('transactions').insert({
+          user_id: currentUser.id,
+          tipo: rec.tipo,
+          categoria: rec.categoria,
+          valor: rec.valor,
+          data: transactionDate.toISOString().split('T')[0],
+          descricao: rec.descricao ? `[Auto] ${rec.descricao}` : '[Auto] Transação recorrente',
+          account_id: rec.accountId
+        });
+
+        if (!error) {
+          rec.lastProcessed = currentMonth;
+          // Update account balance
+          const account = accounts.find(a => a.id === rec.accountId);
+          if (account) {
+            account.balance += rec.tipo === 'receita' ? rec.valor : -rec.valor;
+          }
+        }
+      }
+
+      saveToStorage('recurring', recurringTransactions);
+      saveToStorage('accounts', accounts);
+    }
+
+    // ==================== DASHBOARD ====================
+    async function loadDashboardData() {
+      await Promise.all([loadSummary(), loadTransactions(), loadCharts(), loadGoalsMiniProgress()]);
+    }
+
+    async function loadSummary() {
+      const { start, end } = getDateRange();
+      const accountFilter = document.getElementById('filterAccount')?.value;
+      
+      let query = supabase.from('transactions').select('tipo, valor, account_id')
+        .eq('user_id', currentUser.id).gte('data', start).lte('data', end);
+      
+      if (accountFilter) query = query.eq('account_id', accountFilter);
+      
+      const { data } = await query;
+
+      let income = 0, expense = 0;
+      (data || []).forEach(tx => {
+        if (tx.tipo === 'receita') income += parseFloat(tx.valor);
+        else expense += parseFloat(tx.valor);
+      });
+
+      const totalAccountBalance = accounts.reduce((sum, a) => sum + (a.balance || 0), 0);
+      document.getElementById('totalAccountBalance').textContent = formatCurrency(totalAccountBalance);
+      document.getElementById('totalIncome').textContent = formatCurrency(income);
+      document.getElementById('totalExpense').textContent = formatCurrency(expense);
+      document.getElementById('totalBalance').textContent = formatCurrency(income - expense);
+      document.getElementById('totalBalance').className = 'text-2xl font-bold ' + (income - expense >= 0 ? 'text-gold' : 'text-expense');
+    }
+
+    async function loadTransactions() {
+      const { start, end } = getDateRange();
+      const accountFilter = document.getElementById('filterAccount')?.value;
+      
+      let query = supabase.from('transactions').select('*')
+        .eq('user_id', currentUser.id).gte('data', start).lte('data', end)
+        .order('data', { ascending: false }).order('created_at', { ascending: false }).limit(20);
+      
+      if (accountFilter) query = query.eq('account_id', accountFilter);
+      
+      const { data } = await query;
+
+      const list = document.getElementById('transactionsList');
+      if (!data || data.length === 0) {
+        list.innerHTML = '<p class="text-dark-muted text-center py-8">Nenhuma transação encontrada.</p>';
+        return;
+      }
+
+      list.innerHTML = data.map(tx => {
+        const account = accounts.find(a => a.id === tx.account_id);
+        return `
+          <div class="flex items-center justify-between p-4 bg-dark-bg rounded-lg border border-dark-muted/10 hover:border-gold/20 transition-colors">
+            <div class="flex items-center gap-4">
+              <div class="w-10 h-10 rounded-lg flex items-center justify-center ${tx.tipo === 'receita' ? 'bg-income/20' : 'bg-expense/20'}">
+                <svg class="w-5 h-5 ${tx.tipo === 'receita' ? 'text-income' : 'text-expense'}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  ${tx.tipo === 'receita' ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11l5-5m0 0l5 5m-5-5v12"/>' : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 13l-5 5m0 0l-5-5m5 5V6"/>'}
+                </svg>
+              </div>
+              <div>
+                <p class="font-medium">${tx.categoria}</p>
+                <p class="text-sm text-dark-muted">${formatDate(tx.data)}${account ? ' • ' + account.name : ''}${tx.descricao ? ' • ' + tx.descricao : ''}</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-3">
+              <p class="font-semibold ${tx.tipo === 'receita' ? 'text-income' : 'text-expense'}">${tx.tipo === 'receita' ? '+' : '-'}${formatCurrency(tx.valor)}</p>
+              <button onclick="deleteTransaction('${tx.id}')" class="btn-danger p-2 rounded-lg" title="Excluir">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function deleteTransaction(id) {
+      if (!confirm('Deseja excluir esta transação?')) return;
+      
+      // Get transaction to update account balance
+      const { data: tx } = await supabase.from('transactions').select('*').eq('id', id).single();
+      
+      const { error } = await supabase.from('transactions').delete().eq('id', id).eq('user_id', currentUser.id);
+      if (error) {
+        showToast('Erro ao excluir: ' + error.message, 'error');
+      } else {
+        // Update account balance
+        if (tx && tx.account_id) {
+          const account = accounts.find(a => a.id === tx.account_id);
+          if (account) {
+            account.balance += tx.tipo === 'receita' ? -parseFloat(tx.valor) : parseFloat(tx.valor);
+            saveToStorage('accounts', accounts);
+          }
+        }
+        showToast('Transação excluída!');
+        loadDashboardData();
+      }
+    }
+
+    async function loadCharts() {
+      const { start, end } = getDateRange();
+      const accountFilter = document.getElementById('filterAccount')?.value;
+      
+      // Category pie chart
+      let catQuery = supabase.from('transactions').select('categoria, valor')
+        .eq('user_id', currentUser.id).eq('tipo', 'despesa').gte('data', start).lte('data', end);
+      if (accountFilter) catQuery = catQuery.eq('account_id', accountFilter);
+      
+      const { data: categoryData } = await catQuery;
+
+      const categoryTotals = {};
+      (categoryData || []).forEach(tx => {
+        categoryTotals[tx.categoria] = (categoryTotals[tx.categoria] || 0) + parseFloat(tx.valor);
+      });
+
+      const ctx1 = document.getElementById('categoryChart').getContext('2d');
+      if (categoryChart) categoryChart.destroy();
+
+      const labels = Object.keys(categoryTotals);
+      categoryChart = new Chart(ctx1, {
+        type: 'doughnut',
+        data: {
+          labels: labels.length ? labels : ['Sem dados'],
+          datasets: [{ data: labels.length ? Object.values(categoryTotals) : [1], backgroundColor: labels.length ? categoryColors : ['#333'], borderWidth: 0 }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { color: '#E0E0E0' } } } }
+      });
+
+      // Monthly bar chart (last 6 months)
+      const monthlyData = [];
+      const now = new Date();
+      for (let i = 5; i >= 0; i--) {
+        const mStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const mEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
+        
+        let mQuery = supabase.from('transactions').select('tipo, valor')
+          .eq('user_id', currentUser.id).gte('data', mStart.toISOString().split('T')[0]).lte('data', mEnd.toISOString().split('T')[0]);
+        if (accountFilter) mQuery = mQuery.eq('account_id', accountFilter);
+        
+        const { data } = await mQuery;
+        
+        let income = 0, expense = 0;
+        (data || []).forEach(tx => {
+          if (tx.tipo === 'receita') income += parseFloat(tx.valor);
+          else expense += parseFloat(tx.valor);
+        });
+        monthlyData.push({ month: monthNames[mStart.getMonth()].substring(0, 3), income, expense });
+      }
+
+      const ctx2 = document.getElementById('monthlyChart').getContext('2d');
+      if (monthlyChart) monthlyChart.destroy();
+      monthlyChart = new Chart(ctx2, {
+        type: 'bar',
+        data: {
+          labels: monthlyData.map(m => m.month),
+          datasets: [
+            { label: 'Receitas', data: monthlyData.map(m => m.income), backgroundColor: '#22c55e', borderRadius: 4 },
+            { label: 'Despesas', data: monthlyData.map(m => m.expense), backgroundColor: '#ef4444', borderRadius: 4 }
+          ]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#E0E0E0' } } }, scales: { x: { ticks: { color: '#9CA3AF' } }, y: { ticks: { color: '#9CA3AF' } } } }
+      });
+    }
+
+    function updateCategoryOptions() {
+      const type = document.getElementById('txType').value;
+      const select = document.getElementById('txCategory');
+      select.innerHTML = '<option value="">Selecione...</option>';
+      (type === 'receita' ? categoriesReceita : type === 'despesa' ? categoriesDespesa : []).forEach(cat => {
+        select.innerHTML += `<option value="${cat}">${cat}</option>`;
+      });
+    }
+
+    async function handleAddTransaction(e) {
+      e.preventDefault();
+      const accountId = document.getElementById('txAccount').value;
+      const tipo = document.getElementById('txType').value;
+      const categoria = document.getElementById('txCategory').value;
+      const valor = parseFloat(document.getElementById('txValue').value);
+      const data = document.getElementById('txDate').value;
+      const descricao = document.getElementById('txDescription').value.trim();
+
+      if (!accountId || !tipo || !categoria || !valor || !data) return alert('Preencha os campos obrigatórios.');
+
+      const { error } = await supabase.from('transactions').insert({ 
+        user_id: currentUser.id, 
+        tipo, 
+        categoria, 
+        valor, 
+        data, 
+        descricao: descricao || null,
+        account_id: accountId
+      });
+      if (error) return showToast('Erro: ' + error.message, 'error');
+
+      // Update account balance
+      const account = accounts.find(a => a.id === accountId);
+      if (account) {
+        account.balance += tipo === 'receita' ? valor : -valor;
+        saveToStorage('accounts', accounts);
+      }
+
+      document.getElementById('transactionForm').reset();
+      document.getElementById('txDate').value = new Date().toISOString().split('T')[0];
+      updateCategoryOptions();
+      showToast('Transação adicionada!');
+      loadDashboardData();
+    }
+
+    // ==================== MONTHLY VIEW ====================
+    async function loadMonthlyData() {
+      document.getElementById('currentMonthLabel').textContent = `${monthNames[selectedMonth]} ${selectedYear}`;
+      
+      const start = new Date(selectedYear, selectedMonth, 1).toISOString().split('T')[0];
+      const end = new Date(selectedYear, selectedMonth + 1, 0).toISOString().split('T')[0];
+
+      const { data } = await supabase.from('transactions').select('*')
+        .eq('user_id', currentUser.id).gte('data', start).lte('data', end)
+        .order('data', { ascending: false });
+
+      let income = 0, expense = 0;
+      const dailyData = {};
+      
+      (data || []).forEach(tx => {
+        if (tx.tipo === 'receita') income += parseFloat(tx.valor);
+        else expense += parseFloat(tx.valor);
+        
+        const day = parseInt(tx.data.split('-')[2]);
+        if (!dailyData[day]) dailyData[day] = { income: 0, expense: 0 };
+        if (tx.tipo === 'receita') dailyData[day].income += parseFloat(tx.valor);
+        else dailyData[day].expense += parseFloat(tx.valor);
+      });
+
+      document.getElementById('monthlyIncome').textContent = formatCurrency(income);
+      document.getElementById('monthlyExpense').textContent = formatCurrency(expense);
+      document.getElementById('monthlyBalance').textContent = formatCurrency(income - expense);
+      document.getElementById('monthlyBalance').className = 'text-xl font-bold ' + (income - expense >= 0 ? 'text-gold' : 'text-expense');
+      document.getElementById('monthlyCount').textContent = data?.length || 0;
+
+      renderCalendar(dailyData);
+      renderDailyChart(dailyData);
+      renderHeatmap(dailyData);
+      renderMonthlyTransactions(data || []);
+    }
+
+    function renderCalendar(dailyData) {
+      const grid = document.getElementById('calendarGrid');
+      const firstDay = new Date(selectedYear, selectedMonth, 1).getDay();
+      const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
+      
+      let html = '';
+      for (let i = 0; i < firstDay; i++) html += '<div></div>';
+      
+      for (let day = 1; day <= daysInMonth; day++) {
+        const d = dailyData[day];
+        let cls = 'calendar-day';
+        if (d) {
+          if (d.income > 0 && d.expense > 0) cls += ' has-both';
+          else if (d.income > 0) cls += ' has-income';
+          else if (d.expense > 0) cls += ' has-expense';
+        }
+        html += `<div class="${cls}"><span>${day}</span>${d ? `<span class="text-xs text-dark-muted">${formatCurrency(d.expense || d.income).replace('R$', '')}</span>` : ''}</div>`;
+      }
+      grid.innerHTML = html;
+    }
+
+    function renderDailyChart(dailyData) {
+      const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
+      const labels = [], expenses = [];
+      
+      for (let d = 1; d <= daysInMonth; d++) {
+        labels.push(d);
+        expenses.push(dailyData[d]?.expense || 0);
+      }
+
+      const ctx = document.getElementById('dailyChart').getContext('2d');
+      if (dailyChart) dailyChart.destroy();
+      dailyChart = new Chart(ctx, {
+        type: 'bar',
+        data: { labels, datasets: [{ label: 'Despesas', data: expenses, backgroundColor: '#ef4444', borderRadius: 2 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#9CA3AF' } }, y: { ticks: { color: '#9CA3AF' } } } }
+      });
+    }
+
+    function renderHeatmap(dailyData) {
+      const grid = document.getElementById('heatmapGrid');
+      const firstDay = new Date(selectedYear, selectedMonth, 1).getDay();
+      const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
+      const maxExpense = Math.max(...Object.values(dailyData).map(d => d.expense || 0), 1);
+      
+      let html = '';
+      for (let i = 0; i < firstDay; i++) html += '<div class="heatmap-cell bg-dark-bg"></div>';
+      
+      for (let day = 1; day <= daysInMonth; day++) {
+        const expense = dailyData[day]?.expense || 0;
+        const intensity = expense / maxExpense;
+        const opacity = intensity > 0 ? 0.2 + intensity * 0.6 : 0;
+        html += `<div class="heatmap-cell" style="background: rgba(239, 68, 68, ${opacity})" title="Dia ${day}: ${formatCurrency(expense)}"></div>`;
+      }
+      grid.innerHTML = html;
+    }
+
+    function renderMonthlyTransactions(data) {
+      const list = document.getElementById('monthlyTransactionsList');
+      if (!data.length) {
+        list.innerHTML = '<p class="text-dark-muted text-center py-4">Nenhuma transação neste mês.</p>';
+        return;
+      }
+      list.innerHTML = data.map(tx => {
+        const account = accounts.find(a => a.id === tx.account_id);
+        return `
+          <div class="flex items-center justify-between p-3 bg-dark-bg rounded-lg">
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 rounded flex items-center justify-center ${tx.tipo === 'receita' ? 'bg-income/20 text-income' : 'bg-expense/20 text-expense'}">
+                ${tx.tipo === 'receita' ? '↑' : '↓'}
+              </div>
+              <div>
+                <p class="text-sm font-medium">${tx.categoria}</p>
+                <p class="text-xs text-dark-muted">${formatDate(tx.data)}${account ? ' • ' + account.name : ''}</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="font-medium ${tx.tipo === 'receita' ? 'text-income' : 'text-expense'}">${formatCurrency(tx.valor)}</span>
+              <button onclick="deleteTransaction('${tx.id}'); loadMonthlyData();" class="btn-danger p-1 rounded text-xs">✕</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // ==================== REPORTS ====================
+    async function loadReportsData() {
+      const year = parseInt(document.getElementById('reportYear').value);
+      const start = `${year}-01-01`;
+      const end = `${year}-12-31`;
+
+      const { data } = await supabase.from('transactions').select('*')
+        .eq('user_id', currentUser.id).gte('data', start).lte('data', end)
+        .order('data', { ascending: true });
+
+      renderAnnualChart(data || [], year);
+      renderCashFlowChart(data || [], year);
+      renderReportPieChart(data || []);
+      renderCategoryBreakdown(data || []);
+      renderReportTable(data || []);
+    }
+
+    function renderAnnualChart(data, year) {
+      const monthly = Array(12).fill(null).map(() => ({ income: 0, expense: 0 }));
+      data.forEach(tx => {
+        const month = parseInt(tx.data.split('-')[1]) - 1;
+        if (tx.tipo === 'receita') monthly[month].income += parseFloat(tx.valor);
+        else monthly[month].expense += parseFloat(tx.valor);
+      });
+
+      const ctx = document.getElementById('annualChart').getContext('2d');
+      if (annualChart) annualChart.destroy();
+      annualChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: monthNames.map(m => m.substring(0, 3)),
+          datasets: [
+            { label: 'Receitas', data: monthly.map(m => m.income), backgroundColor: '#22c55e', borderRadius: 4 },
+            { label: 'Despesas', data: monthly.map(m => m.expense), backgroundColor: '#ef4444', borderRadius: 4 }
+          ]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#E0E0E0' } } }, scales: { x: { ticks: { color: '#9CA3AF' } }, y: { ticks: { color: '#9CA3AF' } } } }
+      });
+    }
+
+    function renderCashFlowChart(data, year) {
+      const monthly = Array(12).fill(0);
+      let accumulated = 0;
+      
+      data.forEach(tx => {
+        const month = parseInt(tx.data.split('-')[1]) - 1;
+        monthly[month] += tx.tipo === 'receita' ? parseFloat(tx.valor) : -parseFloat(tx.valor);
+      });
+
+      const accumulatedData = monthly.map(val => accumulated += val);
+
+      const ctx = document.getElementById('cashFlowChart').getContext('2d');
+      if (cashFlowChart) cashFlowChart.destroy();
+      cashFlowChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: monthNames.map(m => m.substring(0, 3)),
+          datasets: [{ label: 'Saldo Acumulado', data: accumulatedData, borderColor: '#FFD700', backgroundColor: 'rgba(255, 215, 0, 0.1)', fill: true, tension: 0.4 }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#E0E0E0' } } }, scales: { x: { ticks: { color: '#9CA3AF' } }, y: { ticks: { color: '#9CA3AF' } } } }
+      });
+    }
+
+    function renderReportPieChart(data) {
+      const type = document.getElementById('pieChartType').value;
+      const filtered = data.filter(tx => tx.tipo === type);
+      const totals = {};
+      filtered.forEach(tx => totals[tx.categoria] = (totals[tx.categoria] || 0) + parseFloat(tx.valor));
+
+      const ctx = document.getElementById('reportPieChart').getContext('2d');
+      if (reportPieChart) reportPieChart.destroy();
+      
+      const labels = Object.keys(totals);
+      reportPieChart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+          labels: labels.length ? labels : ['Sem dados'],
+          datasets: [{ data: labels.length ? Object.values(totals) : [1], backgroundColor: labels.length ? categoryColors : ['#333'], borderWidth: 0 }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#E0E0E0' } } } }
+      });
+    }
+
+    function renderCategoryBreakdown(data) {
+      const type = document.getElementById('pieChartType').value;
+      const filtered = data.filter(tx => tx.tipo === type);
+      const totals = {};
+      filtered.forEach(tx => totals[tx.categoria] = (totals[tx.categoria] || 0) + parseFloat(tx.valor));
+      
+      const sorted = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+      const total = sorted.reduce((s, [, v]) => s + v, 0);
+
+      document.getElementById('categoryBreakdown').innerHTML = sorted.length ? sorted.map(([cat, val], i) => `
+        <div class="flex items-center justify-between p-2 bg-dark-bg rounded">
+          <div class="flex items-center gap-2">
+            <div class="w-3 h-3 rounded" style="background: ${categoryColors[i % categoryColors.length]}"></div>
+            <span>${cat}</span>
+          </div>
+          <div class="text-right">
+            <span class="font-medium">${formatCurrency(val)}</span>
+            <span class="text-dark-muted text-sm ml-2">${((val / total) * 100).toFixed(1)}%</span>
+          </div>
+        </div>
+      `).join('') : '<p class="text-dark-muted text-center py-4">Sem dados</p>';
+    }
+
+    function renderReportTable(data) {
+      document.getElementById('reportTableBody').innerHTML = data.length ? data.map(tx => {
+        const account = accounts.find(a => a.id === tx.account_id);
+        return `
+          <tr class="border-b border-dark-muted/10">
+            <td class="py-2 px-2">${formatDate(tx.data)}</td>
+            <td class="py-2 px-2"><span class="${tx.tipo === 'receita' ? 'text-income' : 'text-expense'}">${tx.tipo}</span></td>
+            <td class="py-2 px-2">${tx.categoria}</td>
+            <td class="py-2 px-2">${account?.name || '-'}</td>
+            <td class="py-2 px-2 text-dark-muted">${tx.descricao || '-'}</td>
+            <td class="py-2 px-2 text-right font-medium">${formatCurrency(tx.valor)}</td>
+          </tr>
+        `;
+      }).join('') : '<tr><td colspan="6" class="py-4 text-center text-dark-muted">Sem dados</td></tr>';
+    }
+
+    function exportCSV() {
+      const rows = document.querySelectorAll('#reportTableBody tr');
+      let csv = 'Data,Tipo,Categoria,Conta,Descrição,Valor\n';
+      rows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+        if (cells.length === 6) {
+          csv += `"${cells[0].textContent}","${cells[1].textContent}","${cells[2].textContent}","${cells[3].textContent}","${cells[4].textContent}","${cells[5].textContent}"\n`;
+        }
+      });
+      
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `luxfinancas_${document.getElementById('reportYear').value}.csv`;
+      a.click();
+      showToast('CSV exportado!');
+    }
+
+    // ==================== INITIALIZATION ====================
+    async function init() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        currentUser = session.user;
+        showApp();
+      }
+
+      supabase.auth.onAuthStateChange((event) => {
+        if (event === 'SIGNED_OUT') handleLogout();
+      });
+    }
+
+    // Event Listeners
+    document.getElementById('authForm').addEventListener('submit', handleAuth);
+    document.getElementById('logoutBtn').addEventListener('click', handleLogout);
+    document.getElementById('transactionForm').addEventListener('submit', handleAddTransaction);
+    document.getElementById('txType').addEventListener('change', updateCategoryOptions);
+
+    document.querySelectorAll('.nav-item').forEach(item => {
+      item.addEventListener('click', () => navigateTo(item.dataset.page));
+    });
+
+    document.getElementById('filterPeriod').addEventListener('change', (e) => {
+      document.getElementById('customDateRange').classList.toggle('hidden', e.target.value !== 'custom');
+      if (e.target.value !== 'custom') {
+        filterDateRange = { start: null, end: null };
+        loadDashboardData();
+      }
+    });
+
+    document.getElementById('applyCustomFilter').addEventListener('click', () => {
+      filterDateRange = {
+        start: document.getElementById('filterStartDate').value,
+        end: document.getElementById('filterEndDate').value
+      };
+      loadDashboardData();
+    });
+
+    document.getElementById('filterAccount').addEventListener('change', loadDashboardData);
+
+    document.getElementById('prevMonth').addEventListener('click', () => {
+      if (selectedMonth === 0) { selectedMonth = 11; selectedYear--; }
+      else selectedMonth--;
+      loadMonthlyData();
+    });
+
+    document.getElementById('nextMonth').addEventListener('click', () => {
+      if (selectedMonth === 11) { selectedMonth = 0; selectedYear++; }
+      else selectedMonth++;
+      loadMonthlyData();
+    });
+
+    document.getElementById('reportYear').addEventListener('change', loadReportsData);
+    document.getElementById('pieChartType').addEventListener('change', () => {
+      const year = parseInt(document.getElementById('reportYear').value);
+      supabase.from('transactions').select('*').eq('user_id', currentUser.id).gte('data', `${year}-01-01`).lte('data', `${year}-12-31`)
+        .then(({ data }) => { renderReportPieChart(data || []); renderCategoryBreakdown(data || []); });
+    });
+    document.getElementById('exportCSV').addEventListener('click', exportCSV);
+
+    init();
+  </script>
+</body>
+</html>
